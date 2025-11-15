@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>موقع الكويز أحمد</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
+body {
+  font-family: 'Cairo', sans-serif;
+  background: linear-gradient(to bottom, #fceabb, #f8b500);
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.container {
+  width: 95%;
+  max-width: 600px;
+  margin-top: 20px;
+}
+.quiz-card {
+  background: white;
+  border-radius: 15px;
+  padding: 20px;
+  margin: 20px auto;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  transition: all 0.5s ease;
+  opacity: 1;
+}
+.quiz-card.fade-out {
+  opacity: 0;
+  transform: translateX(50px);
+}
+button {
+  background: #ffb600;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-top: 15px;
+}
+button:hover {
+  background: #ffaa00;
+}
+.answers button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+}
+.feedback {
+  margin-top: 15px;
+  font-weight: bold;
+}
+@media (max-width: 500px) {
+  .quiz-card { padding: 15px; }
+  button { padding: 8px 16px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="quiz" class="quiz-card">جارٍ تحميل الأسئلة...</div>
+</div>
+<script>
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcWDsX4R4gqmGyWpFqA7WuzQvI-ajwYIJz12rvyj9fJyJ24FXkvdjlES87PvB0Umb4FpJCFCbCO1n_/pub?gid=0&single=true&output=csv";
+let questions = [];
+let currentQ = 0;
+let score = 0;
+let wrongQuestions = [];
+
+async function loadQuestions() {
+  const res = await fetch(csvUrl);
+  const csvText = await res.text();
+  const rows = csvText.trim().split("\n").map(r => r.split(","));
+  const headers = rows.shift();
+  questions = rows.map(row => {
+    let q = {};
+    headers.forEach((h,i) => q[h.trim()] = row[i].trim());
+    return q;
+  });
+  startQuiz();
+}
+
+function shuffle(array) {
+  for (let i = array.length -1; i>0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function startQuiz() {
+  currentQ = 0;
+  score = 0;
+  wrongQuestions = [];
+  showQuestion();
+}
+
+function showQuestion() {
+  const quizDiv = document.getElementById('quiz');
+  if (currentQ >= questions.length) return showReport();
+  const q = questions[currentQ];
+  const answers = shuffle([q.Right, q.Wrong1, q.Wrong2, q.Wrong3]);
+  quizDiv.innerHTML = `
+    <h2>${q.Subject} - ${q.Lesson}</h2>
+    <p>${q.Question}</p>
+    <div class="answers">
+      ${answers.map(a => `<button onclick="checkAnswer('${a}')">${a}</button>`).join('')}
+    </div>
+    <div class="feedback" id="feedback"></div>
+  `;
+}
+
+function checkAnswer(ans) {
+  const q = questions[currentQ];
+  const feedbackDiv = document.getElementById('feedback');
+  if (ans === q.Right) {
+    feedbackDiv.textContent = '✅ إجابة صحيحة! ' + q.Explanation;
+    score++;
+  } else {
+    feedbackDiv.textContent = '❌ إجابة خاطئة! ' + q.Explanation;
+    wrongQuestions.push({question: q.Question, yourAnswer: ans, correctAnswer: q.Right});
+  }
+  document.querySelectorAll('.answers button').forEach(b=>b.disabled=true);
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = 'التالي';
+  nextBtn.onclick = () => { currentQ++; showQuestion(); };
+  document.getElementById('quiz').appendChild(nextBtn);
+}
+
+function showReport() {
+  const quizDiv = document.getElementById('quiz');
+  const now = new Date();
+  const attempt = {date: now.toLocaleString(), score: score, total: questions.length, wrong: wrongQuestions};
+  let reports = JSON.parse(localStorage.getItem('quizReports') || '[]');
+  reports.push(attempt);
+  localStorage.setItem('quizReports', JSON.stringify(reports));
+
+  quizDiv.innerHTML = `
+    <h2>📊 التقرير النهائي</h2>
+    <p>نتيجتك: ${score} من ${questions.length}</p>
+    <h3>الأسئلة الخاطئة:</h3>
+    <ul>
+      ${wrongQuestions.map(w=>`<li>${w.question} - إجابتك: ${w.yourAnswer} - الصحيحة: ${w.correctAnswer}</li>`).join('')}
+    </ul>
+    <button onclick="startQuiz()">إعادة الاختبار</button>
+    <button onclick="showAllReports()">عرض جميع التقارير</button>
+  `;
+}
+
+function showAllReports() {
+  const quizDiv = document.getElementById('quiz');
+  let reports = JSON.parse(localStorage.getItem('quizReports') || '[]');
+  if (reports.length===0){quizDiv.innerHTML='<p>لا توجد تقارير بعد.</p>'; return;}
+  quizDiv.innerHTML = '<h2>📁 جميع المحاولات</h2>' + reports.map(r=>
+    `<p>تاريخ: ${r.date} - النتيجة: ${r.score}/${r.total}</p>`).join('') +
+    '<button onclick="startQuiz()">عودة للاختبار</button>';
+}
+
+loadQuestions();
+</script>
+</body>
+</html>
