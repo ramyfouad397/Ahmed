@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>كويز الأطفال - أحمد</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+
+body {
+  font-family: 'Cairo', sans-serif;
+  background: linear-gradient(to bottom, #fff7c2, #a3d4ff);
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color:#003366;
+  overflow-x:hidden;
+}
+
+/* فقاعات الحركة */
+.bubble {
+  position: absolute;
+  background: rgba(255,255,255,0.3);
+  border-radius: 50%;
+  animation: floatUp 10s infinite ease-in-out;
+}
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-800px) scale(1.5); }
+}
+
+.container {
+  width: 95%;
+  max-width: 650px;
+  margin-top: 30px;
+}
+
+.quiz-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 25px;
+  margin: 20px auto;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  transition: all 0.5s ease;
+  opacity: 1;
+  border:3px solid #ffdd66;
+}
+
+button {
+  background: linear-gradient(45deg,#ffd84d,#79b7ff);
+  border: none;
+  padding: 14px 22px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  margin-top: 15px;
+  font-size: 18px;
+  font-weight:bold;
+  color:#003366;
+}
+button:hover { transform: scale(1.07); }
+
+.answers button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  background: linear-gradient(45deg,#fff099,#7cc3ff);
+}
+
+.stars {
+  font-size: 26px;
+  color: gold;
+  margin-bottom: 10px;
+}
+
+.report-item {
+  background:white;
+  padding:12px;
+  border-radius:12px;
+  margin-bottom:10px;
+  border:2px solid #b5d9ff;
+}
+</style>
+</head>
+<body>
+
+<!-- فقاعات الحركة -->
+<script>
+for(let i=0;i<15;i++){
+  const b=document.createElement('div');
+  b.className='bubble';
+  let size=Math.random()*40+20;
+  b.style.width=size+'px';
+  b.style.height=size+'px';
+  b.style.left=Math.random()*100+'%';
+  b.style.bottom='-100px';
+  b.style.animationDuration=(Math.random()*10+5)+'s';
+  document.body.appendChild(b);
+}
+</script>
+
+<div class="container">
+  <button onclick="showAllReports()" style="width:100%;font-size:20px;">📘 عرض التقارير</button>
+  <div id="quiz" class="quiz-card">جارٍ تحميل الأسئلة...</div>
+</div>
+
+<script>
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcWDsX4R4gqmGyWpFqA7WuzQvI-ajwYIJz12rvyj9fJyJ24FXkvdjlES87PvB0Umb4FpJCFCbCO1n_/pub?gid=0&single=true&output=csv";
+
+let questions = [];
+let subjects = [];
+let lessons = [];
+let filtered = [];
+let currentQ = 0;
+let score = 0;
+let wrongQuestions = [];
+
+async function function calculateRank(count){
+  const ranks=["📘 مجند","📗 عريف","📙 رقيب","📕 رقيب أول","🎖️ ملازم","🎖️ ملازم أول","🌟 نقيب","🌟 رائد","⭐ مقدم","⭐ عقيد","💠 عميد","💠 لواء","🏅 فريق","🏅 فريق أول","🎖️ مشير"];
+  return ranks[Math.min(Math.floor(count/10), ranks.length-1)];
+}
+
+async function loadQuestions(){
+  try{
+    const res = await fetch(csvUrl);
+    const csv = await res.text();
+    const rows = csv.trim().split("
+").map(r=>r.split(","));
+    const headers = rows.shift();
+
+    questions = rows.map(row=>{
+      let q={};
+      headers.forEach((h,i)=> q[h.trim()] = row[i] ? row[i].trim() : "" );
+      return q;
+    });
+
+    subjects = [...new Set(questions.map(q=>q.Subject))];
+    showSubjectSelect();
+
+  }catch(e){
+    document.getElementById('quiz').innerHTML='❌ لم يمكن تحميل ملف الأسئلة.';
+  }
+}
+
+function showSubjectSelect(){
+  const quizDiv=document.getElementById('quiz');
+  quizDiv.innerHTML = `
+    <h2>اختر المادة</h2>
+    ${subjects.map(s=>`<button onclick=\"selectSubject('${s}')\">${s}</button>`).join('')}
+  `;
+}
+
+function selectSubject(subject){
+  lessons = [...new Set(questions.filter(q=>q.Subject===subject).map(q=>q.Lesson))];
+  const quizDiv=document.getElementById('quiz');
+  quizDiv.innerHTML=`
+    <h2>${subject}</h2>
+    <h3>اختر الدرس</h3>
+    ${lessons.map(l=>`<button onclick=\"startLesson('${subject}','${l}')\">${l}</button>`).join('')}
+  `;
+}
+
+function startLesson(subject,lesson){
+  filtered = questions.filter(q=>q.Subject===subject && q.Lesson===lesson);
+  currentQ = 0;
+  score = 0;
+  wrongQuestions = [];
+  showQuestion();
+}
+
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+
+function showQuestion(){
+  const quizDiv=document.getElementById('quiz');
+  if(currentQ>=filtered.length) return showReport();
+  const q = filtered[currentQ];
+  const answers = shuffle([q.Right,q.Wrong1,q.Wrong2,q.Wrong3]);
+
+  quizDiv.innerHTML=`
+    <div class='stars'>⭐ المحاولة رقم ${(currentQ+1)}</div>
+    <h2>${q.Subject} - ${q.Lesson}</h2>
+    <p>${q.Question}</p>
+    <div class="answers">
+      ${answers.map(a=>`<button onclick=\"checkAnswer('${a.replace(/'/g,"\'")}')\">${a}</button>`).join('')}
+    </div>
+    <div id="feedback"></div>
+  `;
+}
+
+function checkAnswer(ans){
+  const q=filtered[currentQ];
+  const feedback=document.getElementById('feedback');
+
+  if(ans===q.Right){ feedback.innerHTML='✅ أحسنت! '+q.Explanation; score++; }
+  else{
+    feedback.innerHTML='❌ خطأ! '+q.Explanation;
+    wrongQuestions.push({q:q.Question,y:ans,c:q.Right});
+  }
+
+  document.querySelectorAll('.answers button').forEach(b=>b.disabled=true);
+
+  const next=document.createElement('button');
+  next.textContent='التالي';
+  next.onclick=()=>{currentQ++;showQuestion();};
+  document.getElementById('quiz').appendChild(next);
+}
+
+function showReport() {
+  const quizDiv = document.getElementById('quiz');
+  const now = new Date();
+  const attempt = {date: now.toLocaleString(), subject: selectedSubject, lesson: selectedLesson, score: score, total: filteredQuestions.length, wrong: wrongQuestions};
+  let reports = JSON.parse(localStorage.getItem('quizReports') || '[]');
+  reports.push(attempt);
+  localStorage.setItem('quizReports', JSON.stringify(reports));
+
+  const rank = calculateRank(reports.length);
+
+  quizDiv.innerHTML = `
+    <h2>📊 التقرير النهائي</h2>
+    <p>الرتبة الحالية: <strong>${rank}</strong></p>
+    <p>نتيجتك: ${score} من ${filteredQuestions.length}</p>
+    <h3>الأسئلة الخاطئة:</h3>
+    <ul>
+      ${wrongQuestions.map(w=>`<li>${w.question} - إجابتك: ${w.yourAnswer} - الصحيحة: ${w.correctAnswer}</li>`).join('')}
+    </ul>
+    <button onclick="startQuiz()">إعادة الاختبار</button>
+    <button onclick="showAllReports()">عرض جميع التقارير</button>
+  `;
+}(){
+  const quizDiv=document.getElementById('quiz');
+  const now = new Date().toLocaleString();
+
+  const attempt = {
+    date: now,
+    subject: filtered[0].Subject,
+    lesson: filtered[0].Lesson,
+    score: score,
+    total: filtered.length,
+    wrong: wrongQuestions
+  };
+
+  let reports = JSON.parse(localStorage.getItem('quizReports')||'[]');
+  reports.push(attempt);
+  localStorage.setItem('quizReports',JSON.stringify(reports));
+
+  quizDiv.innerHTML=`
+    <h2>📊 تقرير الدرس</h2>
+    <p>المادة: ${attempt.subject}</p>
+    <p>الدرس: ${attempt.lesson}</p>
+    <p>النتيجة: ${score}/${filtered.length}</p>
+    <h3>الأخطاء:</h3>
+    <ul>${attempt.wrong.map(w=>`<li>${w.q}<br>إجابتك: ${w.y}<br>الصحيحة: ${w.c}</li>`).join('')}</ul>
+    <button onclick="showSubjectSelect()">عودة للمواد</button>
+  `;
+}
+
+function showAllReports(){
+  const quizDiv=document.getElementById('quiz');
+  let reports = JSON.parse(localStorage.getItem('quizReports')||'[]');
+
+  let output = `<h2>📘 كل المحاولات</h2>`;
+
+  subjects.forEach(sub=>{
+    output += `<h3>📕 المادة: ${sub}</h3>`;
+
+    const subLessons = [...new Set(questions.filter(q=>q.Subject===sub).map(q=>q.Lesson))];
+
+    subLessons.forEach(les=>{
+      output += `<div class='report-item'><strong>📘 الدرس: ${les}</strong><br>`;
+
+      const attempts = reports.filter(r=>r.subject===sub && r.lesson===les);
+
+      if(attempts.length===0) output += "<em>لا توجد محاولات</em>";
+      else attempts.forEach(a=>{
+        output += `<p>🕒 ${a.date} – النتيجة ${a.score}/${a.total}</p>`;
+      });
+
+      output += `</div>`;
+    });
+  });
+
+  output += '<button onclick="showSubjectSelect()">عودة للمواد</button>';
+  quizDiv.innerHTML = output;
+}
+
+loadQuestions();
+</script>
+</body>
+</html>
