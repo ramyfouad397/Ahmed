@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>موقع الكويز للأطفال</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
+body {
+  font-family: 'Cairo', sans-serif;
+  background: linear-gradient(to bottom, #ffecd2, #fcb69f);
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color:#333;
+}
+.container {
+  width: 95%;
+  max-width: 600px;
+  margin-top: 20px;
+}
+.quiz-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 25px;
+  margin: 20px auto;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  transition: all 0.5s ease;
+  opacity: 1;
+  border:3px solid #ffd27f;
+}
+button {
+  background: linear-gradient(45deg,#ffb600,#ff8500);
+  border: none;
+  padding: 12px 22px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  margin-top: 15px;
+  font-size: 16px;
+  font-weight:bold;
+  color:white;
+}
+button:hover {
+  transform: scale(1.05);
+}
+.answers button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+}
+.feedback {
+  margin-top: 15px;
+  font-weight: bold;
+}
+@media (max-width: 500px) {
+  .quiz-card { padding: 15px; }
+  button { padding: 8px 16px; }
+}
+select {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <button onclick="showAllReports()" style="background:#4a90e2;color:white;width:100%;padding:12px;border-radius:12px;font-size:18px;margin-bottom:15px;">📘 عرض التقارير</button>
+  <div id="quiz" class="quiz-card">جارٍ تحميل الأسئلة...</div>
+</div>
+<script>
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcWDsX4R4gqmGyWpFqA7WuzQvI-ajwYIJz12rvyj9fJyJ24FXkvdjlES87PvB0Umb4FpJCFCbCO1n_/pub?gid=0&single=true&output=csv";
+let questions = [];
+let filteredQuestions = [];
+let currentQ = 0;
+let score = 0;
+let wrongQuestions = [];
+
+async function loadQuestions() {
+  try {
+    const res = await fetch(csvUrl);
+    if(!res.ok) throw new Error('CSV fetch failed');
+    const csvText = await res.text();
+    const rows = csvText.trim().split("\n").map(r => r.split(","));
+    const headers = rows.shift();
+    questions = rows.map(row => {
+      let q = {};
+      headers.forEach((h,i) => q[h.trim()] = row[i] ? row[i].trim() : '');
+      return q;
+    });
+  } catch (error) {
+    console.warn('لم يتم تحميل CSV، سيتم استخدام الأسئلة الافتراضية', error);
+    questions = [
+      {Subject:'رياضيات', Lesson:'الضرب', Question:'ما ناتج 3 × 4 ؟', Wrong1:'6', Wrong2:'7', Wrong3:'10', Right:'12', Explanation:'لأن 3 مكررة 4 مرات = 12', Difficulty:'سهل'},
+      {Subject:'رياضيات', Lesson:'الضرب', Question:'ما حاصل ضرب 5 × 6 ؟', Wrong1:'20', Wrong2:'25', Wrong3:'40', Right:'30', Explanation:'٥ مكررة ٦ مرات = ٣٠', Difficulty:'سهل'}
+    ];
+  }
+  showSubjectLessonSelection();
+}
+
+function showSubjectLessonSelection() {
+  const quizDiv = document.getElementById('quiz');
+  const subjects = [...new Set(questions.map(q => q.Subject))];
+  quizDiv.innerHTML = '<h2>اختر المادة والدرس</h2>';
+  let html = '<select id="subjectSelect"><option value="">اختر المادة</option>';
+  subjects.forEach(s => html += `<option value="${s}">${s}</option>`);
+  html += '</select>';
+  quizDiv.innerHTML += html;
+
+  quizDiv.innerHTML += '<select id="lessonSelect"><option value="">اختر الدرس</option></select>';
+  quizDiv.innerHTML += '<button onclick="startSelectedQuiz()">ابدأ الاختبار</button>';
+
+  document.getElementById('subjectSelect').addEventListener('change', function(){
+    const lessons = [...new Set(questions.filter(q => q.Subject===this.value).map(q => q.Lesson))];
+    const lessonSelect = document.getElementById('lessonSelect');
+    lessonSelect.innerHTML = '<option value="">اختر الدرس</option>' + lessons.map(l=>`<option value="${l}">${l}</option>`).join('');
+  });
+}
+
+function startSelectedQuiz() {
+  const subject = document.getElementById('subjectSelect').value;
+  const lesson = document.getElementById('lessonSelect').value;
+  if(!subject || !lesson) { alert('اختر المادة والدرس للمتابعة'); return; }
+  filteredQuestions = questions.filter(q => q.Subject===subject && q.Lesson===lesson);
+  currentQ = 0; score=0; wrongQuestions=[];
+  showQuestion();
+}
+
+function shuffle(array) {
+  for (let i = array.length -1; i>0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function showQuestion() {
+  const quizDiv = document.getElementById('quiz');
+  if (currentQ >= filteredQuestions.length) return showReport();
+  const q = filteredQuestions[currentQ];
+  const answers = shuffle([q.Right, q.Wrong1, q.Wrong2, q.Wrong3]);
+  quizDiv.innerHTML = `
+    <h2>${q.Subject} - ${q.Lesson}</h2>
+    <p>${q.Question}</p>
+    <div class="answers">
+      ${answers.map(a => `<button onclick="checkAnswer('${a.replace(/'/g,"\\'")}')">${a}</button>`).join('')}
+    </div>
+    <div class="feedback" id="feedback"></div>
+  `;
+}
+
+function checkAnswer(ans) {
+  const q = filteredQuestions[currentQ];
+  const feedbackDiv = document.getElementById('feedback');
+  if (ans === q.Right) {
+    feedbackDiv.textContent = '✅ إجابة صحيحة! ' + q.Explanation;
+    score++;
+  } else {
+    feedbackDiv.textContent = '❌ إجابة خاطئة! ' + q.Explanation;
+    wrongQuestions.push({question: q.Question, yourAnswer: ans, correctAnswer: q.Right});
+  }
+  document.querySelectorAll('.answers button').forEach(b=>b.disabled=true);
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = 'التالي';
+  nextBtn.onclick = () => { currentQ++; showQuestion(); };
+  document.getElementById('quiz').appendChild(nextBtn);
+}
+
+function showReport() {
+  const quizDiv = document.getElementById('quiz');
+  const now = new Date();
+  const attempt = {date: now.toLocaleString(), score: score, total: filteredQuestions.length, wrong: wrongQuestions};
+  let reports = JSON.parse(localStorage.getItem('quizReports') || '[]');
+  reports.push(attempt);
+  localStorage.setItem('quizReports', JSON.stringify(reports));
+
+  quizDiv.innerHTML = `
+    <h2>📊 التقرير النهائي</h2>
+    <p>نتيجتك: ${score} من ${filteredQuestions.length}</p>
+    <h3>الأسئلة الخاطئة:</h3>
+    <ul>
+      ${wrongQuestions.map(w=>`<li>${w.question} - إجابتك: ${w.yourAnswer} - الصحيحة: ${w.correctAnswer}</li>`).join('')}
+    </ul>
+    <button onclick="showSubjectLessonSelection()">عودة للاختيار</button>
+    <button onclick="showAllReports()">عرض جميع التقارير</button>
+  `;
+}
+
+function showAllReports() {
+  const quizDiv = document.getElementById('quiz');
+  let reports = JSON.parse(localStorage.getItem('quizReports') || '[]');
+  if (reports.length===0){quizDiv.innerHTML='<p>لا توجد تقارير بعد.</p>'; return;}
+  quizDiv.innerHTML = '<h2>📁 جميع المحاولات</h2>' + reports.map(r=>
+    `<p>تاريخ: ${r.date} - النتيجة: ${r.score}/${r.total}</p>`).join('') +
+    '<button onclick="showSubjectLessonSelection()">عودة للاختبار</button>';
+}
+
+loadQuestions();
+</script>
+</body>
+</html>
