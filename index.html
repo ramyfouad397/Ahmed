@@ -145,13 +145,14 @@ function loadQuestion(){
   const q = questions[qIndex];
   document.getElementById("quizTitle").innerText = `${currentSubject} — ${currentQuiz}`;
   document.getElementById("questionText").innerText = q.question;
-  document.getElementById("explanationBox").style.display="none";
+  const exp = document.getElementById("explanationBox");
+  exp.style.display="none";
   document.getElementById("nextBtn").classList.add("hidden");
 
   // progress
   document.getElementById("progressBar").style.width = ((qIndex)/questions.length*100)+"%";
 
-  // answers shuffled
+  // shuffle answers
   const answers = [...q.wrong, q.right].sort(()=>Math.random()-0.5);
   document.getElementById("answers").innerHTML =
     answers.map(a=>`<button onclick='answer("${a.replace(/"/g,"&quot;")}")'>${a}</button>`).join("");
@@ -169,6 +170,7 @@ function answer(ans){
     exp.innerHTML = `❌ إجابة خاطئة!<br>الإجابة الصحيحة: ${q.right}<br>${q.explanation}`;
   }
 
+  // disable answers
   document.querySelectorAll("#answers button").forEach(b=>b.disabled=true);
   document.getElementById("nextBtn").classList.remove("hidden");
 }
